@@ -15,11 +15,19 @@ async def router_node(state: AgentState):
         return {"classification": "complex"}
 
     # Otherwise, ask the LLM to decide
+    # prompt = f"""
+    # Analyze this request: "{user_input}"
+    # If it's a single, clear task (e.g., 'Remind me to buy milk'), return 'simple'.
+    # If it's a goal requiring multiple steps (e.g., 'Plan a trip to Japan'), return 'complex'.
+    # Return ONLY the word 'simple' or 'complex'.
+    # """
     prompt = f"""
-    Analyze this request: "{user_input}"
-    If it's a single, clear task (e.g., 'Remind me to buy milk'), return 'simple'.
-    If it's a goal requiring multiple steps (e.g., 'Plan a trip to Japan'), return 'complex'.
-    Return ONLY the word 'simple' or 'complex'.
+    Classification Task:
+    Input: "{user_input}"
+    Rules:
+    - If it's a single task, reply: simple
+    - If it's a project/multiple steps, reply: complex
+    Output only the word. No punctuation.
     """
     
     response = await llm.ainvoke(prompt)

@@ -1,7 +1,7 @@
 import enum
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Text, DateTime, Enum, ForeignKey, Boolean, Integer
+from sqlalchemy import Column, String, Text, DateTime, Enum, ForeignKey, Boolean, Integer, Table
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, relationship
 
@@ -19,6 +19,13 @@ class Category(enum.Enum):
     CHORES = "chores"
     FITNESS = "fitness"
 
+task_dependencies = Table(
+    "task_dependencies",
+    Base.metadata,
+    Column("task_id", UUID(as_uuid=True), ForeignKey("tasks.id"), primary_key=True),
+    Column("depends_on_id", UUID(as_uuid=True), ForeignKey("tasks.id"), primary_key=True),
+)
+
 class Task(Base):
     __tablename__ = "tasks"
 
@@ -35,6 +42,15 @@ class Task(Base):
 
     created_at = Column(DateTime, default=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)
+
+    dependencies = relationship(
+        "Task",
+        secondary=task_dependencies,
+        primaryjoin=id == task_dependencies.c.task_id,
+        secondaryjoin=id == task_dependencies.c.depends_on_id,
+        backref="dependent_tasks",
+        lazy="joined",
+    )
 
 class Roadmap(Base):
     __tablename__ = "roadmaps"

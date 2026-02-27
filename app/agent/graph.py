@@ -1,18 +1,38 @@
 from langgraph.graph import StateGraph, END
+from langgraph.checkpoint.memory import MemorySaver # For local dev, In production, we'd use PostgresSaver
 from app.agent.state import AgentState
 from app.agent.nodes.router import router_node
+from app.agent.nodes.planner import planner_node
+from app.agent.nodes.executor import executor_node # Create this file
+
+memory = MemorySaver()
 
 def create_graph():
     workflow = StateGraph(AgentState)
 
-    # Add the router node
     workflow.add_node("router", router_node)
+    workflow.add_node("planner", planner_node)
+    workflow.add_node("executor", executor_node)
 
-    # Define the starting point
     workflow.set_entry_point("router")
 
-    # Add conditional logic
-    # We will expand these destinations in the next step
-    workflow.add_edge("router", END)
+    # The Logic Gate
+    def route_decision(state: AgentState):
+        if state["classification"] == "simple":
+            return "executor"
+        return "planner"
 
-    return workflow.compile()
+    workflow.add_conditional_edges(
+        "router",
+        route_decision,
+        {
+            "executor": "executor",
+            "planner": "planner"
+        }
+    )
+
+    workflow.add_edge("planner", "executor")
+    workflow.add_edge("executor", END)
+
+    # return workflow.compile()
+    return workflow.compile(checkpointer=memory, interrupt_before=["executor"])
