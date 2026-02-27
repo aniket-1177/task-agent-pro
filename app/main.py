@@ -1,6 +1,10 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
+from uuid import UUID
+from app.db.models import Roadmap
+from app.agent.utils import sort_tasks_topologically
 from app.agent.graph import create_graph
 from app.db.session import init_db, async_session 
 from app.db.models import Task
@@ -77,3 +81,36 @@ async def get_tasks():
         result = await session.execute(select(Task))
         tasks = result.scalars().all()
         return tasks
+    
+@app.get("/roadmaps/{roadmap_id}/tree")
+async def get_roadmap_tree(roadmap_id: UUID):
+    async with async_session() as session:
+        # Load roadmap and tasks + dependencies in a single query
+        query = (
+            select(Roadmap)
+            .options(selectinload(Roadmap.tasks).selectinload(Task.dependencies))
+            .where(Roadmap.id == roadmap_id)
+        )
+        result = await session.execute(query)
+        roadmap = result.scalar_one_or_none()
+
+        if not roadmap:
+            raise HTTPException(status_code=404, detail="Roadmap not found")
+
+        # Sort the tasks using our utility
+        ordered_tasks = sort_tasks_topologically(roadmap.tasks)
+
+        return {
+            "goal": roadmap.goal,
+            "created_at": roadmap.created_at,
+            "timeline": [
+                {
+                    "id": t.id,
+                    "title": t.title,
+                    "category": t.category.value,
+                    "status": t.status.value,
+                    "depends_on": [dep.title for dep in t.dependencies]
+                }
+                for t in ordered_tasks
+            ]
+        }
